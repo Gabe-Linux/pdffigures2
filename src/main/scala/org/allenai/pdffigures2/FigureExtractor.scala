@@ -5,7 +5,8 @@ import org.allenai.common.Logging
 import org.allenai.pdffigures2.FigureExtractor.{
   DocumentWithRasterizedFigures,
   DocumentContent,
-  Document
+  Document,
+  ExhaustiveDocument
 }
 import org.allenai.pdffigures2.SectionedTextBuilder.{ PdfText, DocumentSection }
 
@@ -56,6 +57,17 @@ case class FigureExtractor(
       visualLogger.get.logSections(sections, pages)
     }
     Document(content.figures, abstractText, sections)
+  }
+
+  def getFiguresWithTextAndFailures(doc: PDDocument, pages: Option[Seq[Int]] = None,
+                                    visualLogger: Option[VisualLogger] = None): ExhaustiveDocument = {
+    val content = parseDocument(doc, pages, visualLogger)
+    val abstractText = getAbstract(content)
+    val sections = getSections(content)
+    if (visualLogger.isDefined) {
+      visualLogger.get.logSections(sections, pages)
+    }
+    ExhaustiveDocument(FiguresInDocument(content.figures, content.failedCaptions), abstractText, sections)
   }
 
   def getRasterizedFiguresWithText(doc: PDDocument, dpi: Int, pages: Option[Seq[Int]] = None,
@@ -192,6 +204,25 @@ object FigureExtractor {
 
     def fromPDDocument(pdDocument: PDDocument) =
       figureExtractor.getFiguresWithText(pdDocument)
+  }
+
+  /** Similar to Document, but with the failed figure captions included in a FiguresInDocument
+    * instance.
+    */
+  case class ExhaustiveDocument(
+   figures: FiguresInDocument,
+   abstractText: Option[PdfText],
+   sections: Seq[DocumentSection]
+  )
+
+  object ExhaustiveDocument {
+    private val figureExtractor = new FigureExtractor(true, true, true, true, true)
+
+    def fromInputStream(is: InputStream): ExhaustiveDocument =
+      fromPDDocument(PDDocument.load(is))
+
+    def fromPDDocument(pdDocument: PDDocument) =
+      figureExtractor.getFiguresWithTextAndFailures(pdDocument)
   }
 
   /** Document with figures rasterized */
